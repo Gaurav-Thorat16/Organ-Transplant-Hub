@@ -17,7 +17,8 @@ import {
 } from "@/components/ui/sidebar";
 
 const navItems = [
-  { title: "Find Match", url: "/", icon: Activity },
+  { title: "Transplant Matching", url: "/", icon: Activity },
+  { title: "Blood Donation", url: "/", icon: Droplet },
   { title: "Donor Registry", url: "/donors", icon: ListPlus },
 ];
 

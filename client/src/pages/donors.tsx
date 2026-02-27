@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 
-const ORGAN_TYPES = ["Heart", "Liver", "Kidney", "Lungs", "Pancreas", "Corneas"];
+const ORGAN_TYPES = ["Heart", "Liver", "Kidney", "Lungs", "Pancreas", "Corneas", "Blood"];
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
 export default function Donors() {

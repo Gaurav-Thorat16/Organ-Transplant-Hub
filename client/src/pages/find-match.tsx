@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 
-const ORGAN_TYPES = ["Heart", "Liver", "Kidney", "Lungs", "Pancreas", "Corneas"];
+const ORGAN_TYPES = ["Heart", "Liver", "Kidney", "Lungs", "Pancreas", "Corneas", "Blood"];
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
 export default function FindMatch() {
@@ -46,8 +46,8 @@ export default function FindMatch() {
   return (
     <AppLayout>
       <div className="mb-8">
-        <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">Find Optimal Match</h1>
-        <p className="text-muted-foreground text-lg">Run allocation algorithm against active donor registry.</p>
+        <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">Matching & Allocation</h1>
+        <p className="text-muted-foreground text-lg">Algorithmically matching organs and blood for optimal allocation.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">

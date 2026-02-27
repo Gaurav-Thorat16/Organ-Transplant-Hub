@@ -41,7 +41,10 @@ export class MemoryStorage implements IStorage {
       { hospitalName: "Mercy Medical", organType: "Liver", bloodGroup: "A-", viabilityTime: 12, latitude: 41.8781, longitude: -87.6298 },
       { hospitalName: "St. John's", organType: "Kidney", bloodGroup: "B+", viabilityTime: 24, latitude: 29.7604, longitude: -95.3698 },
       { hospitalName: "Hope Center", organType: "Heart", bloodGroup: "O+", viabilityTime: 2, latitude: 40.7306, longitude: -73.9352 },
-      { hospitalName: "Memorial Hospital", organType: "Heart", bloodGroup: "O+", viabilityTime: 8, latitude: 42.3601, longitude: -71.0589 }
+      { hospitalName: "Memorial Hospital", organType: "Heart", bloodGroup: "O+", viabilityTime: 8, latitude: 42.3601, longitude: -71.0589 },
+      // Blood Donors
+      { hospitalName: "Red Cross Center", organType: "Blood", bloodGroup: "A+", viabilityTime: 840, latitude: 40.7128, longitude: -74.0060 },
+      { hospitalName: "Community Blood Bank", organType: "Blood", bloodGroup: "O-", viabilityTime: 1000, latitude: 40.7306, longitude: -73.9352 },
     ];
     for (const d of seedDonors) {
       this.addDonor(d);
@@ -66,6 +69,7 @@ export class MemoryStorage implements IStorage {
 
     for (const donor of matches) {
       const distance = getDistanceFromLatLonInKm(req.latitude, req.longitude, donor.latitude, donor.longitude);
+      // Urgency and distance weigh differently for blood vs organs, but same algorithm applies
       const score = (req.urgencyLevel * 100) + (donor.viabilityTime * 10) - (distance * 0.5);
       heap.push({ donor, score, distance });
     }
