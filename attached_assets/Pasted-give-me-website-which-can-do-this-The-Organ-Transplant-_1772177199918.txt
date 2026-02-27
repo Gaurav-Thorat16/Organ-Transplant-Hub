@@ -1,0 +1,43 @@
+give me website which can do this 
+The Organ Transplant Matching System is a decision-support web application designed to efficiently and fairly allocate available donor organs to recipients using advanced data structures rather than simple database queries. The backend is implemented entirely in C++, where donor records are stored in balanced search trees (AVL Trees) to enable fast insertion, deletion, and lookup. When a user submits requirements such as organ type, blood group, urgency level, and geographic location, the system computes a priority score for each compatible donor using multiple real-world factors including medical urgency, organ viability time, and transport distance. A priority queue (heap) is then used to extract the top-K best matching donors, ensuring optimal and time-critical decision making. The frontend provides a clean dashboard that visualizes ranked results, while all core logic and decision processes remain in the backend. This project demonstrates practical application of advanced data structures, algorithmic thinking, and system design in a real-world healthcare scenario, making it a comprehensive Advanced DSA project. 
+
+Project Workflow – Organ Transplant Matching System
+1. User Interaction (Frontend Layer)
+
+The workflow begins when the user accesses the web-based dashboard. The user enters essential medical and logistical details such as required organ type, blood group, urgency level, and geographic location (latitude and longitude). The frontend only acts as a visualization and input layer and does not perform any decision-making logic.
+
+2. Request Transmission
+
+After submitting the form, the frontend sends the user’s data as a JSON request to the backend through a REST API endpoint. This request represents a real-world organ requirement scenario that needs to be evaluated efficiently and fairly.
+
+3. Donor Data Retrieval (AVL Tree)
+
+On the backend, donor records are stored in an AVL Tree, a self-balancing binary search tree. This ensures fast and reliable searching of donor data even as the dataset grows. The system traverses the AVL Tree to retrieve only those donors whose organ type and blood group match the recipient’s requirements.
+
+4. Priority Calculation (Decision Logic)
+
+For every compatible donor, the system computes a priority score using multiple real-world parameters:
+
+Medical urgency of the recipient
+
+Organ viability time
+
+Geographic distance between donor hospital and recipient
+
+This step converts medical and logistical constraints into a numerical score, enabling algorithmic decision-making.
+
+5. Ranking Using Priority Queue (Heap)
+
+All matching donors are inserted into a Priority Queue (Max-Heap) based on their computed priority scores. The heap allows efficient extraction of the top-K best donor matches, ensuring that the most critical and suitable cases are handled first.
+
+6. Result Generation
+
+The backend extracts the highest-ranked donors from the heap and prepares a structured response containing rank, hospital name, organ details, viability time, and priority score.
+
+7. Result Visualization (Frontend)
+
+The ranked results are sent back to the frontend, where they are displayed in a tabular format. The best match is highlighted visually, making the decision easy to understand for users. No additional computation is performed on the frontend.
+
+8. System Outcome
+
+The final output is a transparent, efficient, and fair organ allocation recommendation generated using advanced data structures and algorithms, closely simulating a real-world organ transplant decision-support system.
