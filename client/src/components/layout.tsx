@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { Activity, HeartPulse, ListPlus, Menu } from "lucide-react";
+import { Activity, Droplet, HeartPulse, ListPlus, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sidebar,
