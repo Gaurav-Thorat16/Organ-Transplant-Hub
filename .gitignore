@@ -7,3 +7,4 @@ vite.config.ts.*
 node_modules
 .env
 .DS_Store
+.replit
