@@ -8,3 +8,10 @@ node_modules
 .env
 .DS_Store
 .replit
+replit.nix
+.nix
+.cache
+.upm
+.config
+node_modules
+.DS_Store
