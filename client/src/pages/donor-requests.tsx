@@ -15,7 +15,6 @@ import { useHospitalAvailability, useAddHospitalAvailability } from "@/hooks/use
 import { useIncomingRequests, useUpdateRequestStatus } from "@/hooks/use-requests";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { api } from "@shared/routes";
 
 const ORGAN_TYPES = ["Kidney", "Liver", "Heart", "Lungs", "Pancreas", "Cornea"] as const;
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"] as const;
@@ -36,7 +35,7 @@ function useDeleteAvailability() {
       if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
       return res.json();
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: [api.hospitals.availabilityList.path] }); toast({ title: "Deleted", description: "Availability entry removed." }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hospital-availability"] }); toast({ title: "Deleted", description: "Availability entry removed." }); },
     onError: (e: Error) => { toast({ title: "Error", description: e.message, variant: "destructive" }); },
   });
 }
@@ -54,7 +53,7 @@ function useReduceAvailability() {
       if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
       return res.json();
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: [api.hospitals.availabilityList.path] }); toast({ title: "Reduced", description: "Quantity updated." }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hospital-availability"] }); toast({ title: "Reduced", description: "Quantity updated." }); },
     onError: (e: Error) => { toast({ title: "Error", description: e.message, variant: "destructive" }); },
   });
 }
