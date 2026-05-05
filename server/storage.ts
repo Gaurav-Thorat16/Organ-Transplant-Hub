@@ -21,7 +21,7 @@ import type {
   UrgencyLevel,
   Stats,
 } from "@shared/schema";
-import { db } from "./db";
+import { db, hasDatabaseUrl } from "./db";
 
 // Blood compatibility map: key = recipient, value = compatible donors
 const BLOOD_COMPATIBILITY: Record<string, string[]> = {
@@ -896,4 +896,428 @@ export class PostgresStorage implements IStorage {
   }
 }
 
-export const storage = new PostgresStorage();
+type MemoryUser = AuthUser & {
+  passwordSalt: string;
+  passwordHash: string;
+};
+
+class MemoryStorage implements IStorage {
+  private readonly users = new Map<string, MemoryUser>();
+  private readonly hospitals = new Map<string, Hospital>();
+  private readonly availability = new Map<string, OrganAvailability>();
+  private readonly requests = new Map<string, TransplantRequest>();
+
+  constructor() {
+    this.seed();
+  }
+
+  private hashPassword(password: string, salt: string = randomUUID()) {
+    const hash = createHash("sha256").update(`${salt}:${password}`).digest("hex");
+    return { salt, hash };
+  }
+
+  private publicUser(user: MemoryUser): AuthUser {
+    const { passwordSalt: _passwordSalt, passwordHash: _passwordHash, ...safeUser } = user;
+    return safeUser;
+  }
+
+  private getHospitalOrThrow(userId: string) {
+    const hospital = Array.from(this.hospitals.values()).find((entry) => entry.userId === userId);
+    if (!hospital) throw new Error("Hospital account not found");
+    return hospital;
+  }
+
+  private seed() {
+    const now = new Date().toISOString();
+    const seededUsers: Array<{ name: string; email: string; role: "hospital" | "patient"; city: string; phone: string; password: string }> = [
+      { name: "Ruby Hall Hospital", email: "hospital.pune@transplant.local", role: "hospital", city: "Pune", phone: "+91-20-26163391", password: "Hospital123!" },
+      { name: "Kokilaben Hospital", email: "hospital.mumbai@transplant.local", role: "hospital", city: "Mumbai", phone: "+91-22-30999999", password: "Hospital123!" },
+      { name: "Apollo Hospitals", email: "hospital.delhi@transplant.local", role: "hospital", city: "Delhi", phone: "+91-11-71791090", password: "Hospital123!" },
+      { name: "Manipal Hospital", email: "hospital.bangalore@transplant.local", role: "hospital", city: "Bangalore", phone: "+91-80-22221111", password: "Hospital123!" },
+      { name: "Fortis Malar Hospital", email: "hospital.chennai@transplant.local", role: "hospital", city: "Chennai", phone: "+91-44-42892222", password: "Hospital123!" },
+      { name: "Yashoda Hospitals", email: "hospital.hyderabad@transplant.local", role: "hospital", city: "Hyderabad", phone: "+91-40-45674567", password: "Hospital123!" },
+      { name: "AMRI Hospital", email: "hospital.kolkata@transplant.local", role: "hospital", city: "Kolkata", phone: "+91-33-66246000", password: "Hospital123!" },
+      { name: "Aarav Patil", email: "patient.pune@transplant.local", role: "patient", city: "Pune", phone: "+91-9876543210", password: "Patient123!" },
+      { name: "Sara Khan", email: "patient.mumbai@transplant.local", role: "patient", city: "Mumbai", phone: "+91-9876543211", password: "Patient123!" },
+      { name: "Rohan Mehta", email: "patient.delhi@transplant.local", role: "patient", city: "Delhi", phone: "+91-9876543212", password: "Patient123!" },
+      { name: "Diya Iyer", email: "patient.bangalore@transplant.local", role: "patient", city: "Bangalore", phone: "+91-9876543213", password: "Patient123!" },
+      { name: "Arjun Nair", email: "patient.chennai@transplant.local", role: "patient", city: "Chennai", phone: "+91-9876543214", password: "Patient123!" },
+      { name: "Zoya Ali", email: "patient.hyderabad@transplant.local", role: "patient", city: "Hyderabad", phone: "+91-9876543215", password: "Patient123!" },
+    ];
+
+    for (const entry of seededUsers) {
+      const credentials = this.hashPassword(entry.password);
+      const user: MemoryUser = {
+        id: randomUUID(),
+        name: entry.name,
+        email: normalize(entry.email),
+        role: entry.role,
+        city: entry.city,
+        phone: entry.phone,
+        createdAt: now,
+        passwordSalt: credentials.salt,
+        passwordHash: credentials.hash,
+      };
+      this.users.set(user.id, user);
+
+      if (user.role === "hospital") {
+        const hospital: Hospital = {
+          id: randomUUID(),
+          userId: user.id,
+          name: user.name,
+          city: user.city,
+          createdAt: now,
+        };
+        this.hospitals.set(hospital.id, hospital);
+      }
+    }
+
+    const hospitalByCity = new Map(
+      Array.from(this.hospitals.values()).map((hospital) => [normalize(hospital.city), hospital]),
+    );
+    const availabilitySeeds: Array<{ city: string; organType: OrganType; bloodGroup: BloodGroup; quantity: number }> = [
+      { city: "Pune", organType: "Kidney", bloodGroup: "O+", quantity: 4 },
+      { city: "Pune", organType: "Liver", bloodGroup: "A+", quantity: 2 },
+      { city: "Pune", organType: "Cornea", bloodGroup: "B+", quantity: 6 },
+      { city: "Pune", organType: "Pancreas", bloodGroup: "AB-", quantity: 1 },
+      { city: "Mumbai", organType: "Heart", bloodGroup: "AB+", quantity: 1 },
+      { city: "Mumbai", organType: "Kidney", bloodGroup: "O+", quantity: 3 },
+      { city: "Mumbai", organType: "Lungs", bloodGroup: "A-", quantity: 2 },
+      { city: "Mumbai", organType: "Liver", bloodGroup: "B+", quantity: 2 },
+      { city: "Delhi", organType: "Kidney", bloodGroup: "A+", quantity: 5 },
+      { city: "Delhi", organType: "Liver", bloodGroup: "O-", quantity: 2 },
+      { city: "Delhi", organType: "Heart", bloodGroup: "B-", quantity: 1 },
+      { city: "Delhi", organType: "Cornea", bloodGroup: "AB+", quantity: 4 },
+      { city: "Bangalore", organType: "Lungs", bloodGroup: "O+", quantity: 3 },
+      { city: "Bangalore", organType: "Kidney", bloodGroup: "A-", quantity: 3 },
+      { city: "Bangalore", organType: "Pancreas", bloodGroup: "B+", quantity: 1 },
+      { city: "Bangalore", organType: "Cornea", bloodGroup: "O-", quantity: 5 },
+      { city: "Chennai", organType: "Liver", bloodGroup: "AB-", quantity: 2 },
+      { city: "Chennai", organType: "Kidney", bloodGroup: "B+", quantity: 4 },
+      { city: "Chennai", organType: "Heart", bloodGroup: "A+", quantity: 1 },
+      { city: "Chennai", organType: "Cornea", bloodGroup: "O+", quantity: 6 },
+      { city: "Hyderabad", organType: "Lungs", bloodGroup: "AB+", quantity: 2 },
+      { city: "Hyderabad", organType: "Pancreas", bloodGroup: "A-", quantity: 1 },
+      { city: "Hyderabad", organType: "Kidney", bloodGroup: "B-", quantity: 3 },
+      { city: "Hyderabad", organType: "Liver", bloodGroup: "O+", quantity: 2 },
+      { city: "Kolkata", organType: "Kidney", bloodGroup: "AB+", quantity: 2 },
+      { city: "Kolkata", organType: "Liver", bloodGroup: "A+", quantity: 2 },
+      { city: "Kolkata", organType: "Cornea", bloodGroup: "B-", quantity: 7 },
+      { city: "Kolkata", organType: "Lungs", bloodGroup: "O-", quantity: 1 },
+    ];
+
+    for (const seed of availabilitySeeds) {
+      const hospital = hospitalByCity.get(normalize(seed.city));
+      if (!hospital) continue;
+      const entry: OrganAvailability = {
+        id: randomUUID(),
+        hospitalId: hospital.id,
+        organType: seed.organType,
+        bloodGroup: seed.bloodGroup,
+        quantity: seed.quantity,
+        status: seed.quantity > 0 ? "AVAILABLE" : "UNAVAILABLE",
+        city: seed.city,
+        createdAt: now,
+        updatedAt: now,
+      };
+      this.availability.set(entry.id, entry);
+    }
+  }
+
+  async createUser(input: AuthSignupInput): Promise<AuthUser> {
+    const email = normalize(input.email);
+    if (Array.from(this.users.values()).some((user) => user.email === email)) {
+      throw new Error("Email already exists");
+    }
+
+    const now = new Date().toISOString();
+    const credentials = this.hashPassword(input.password);
+    const user: MemoryUser = {
+      id: randomUUID(),
+      name: input.name,
+      email,
+      role: input.role,
+      city: input.city,
+      phone: input.phone,
+      createdAt: now,
+      passwordSalt: credentials.salt,
+      passwordHash: credentials.hash,
+    };
+    this.users.set(user.id, user);
+
+    if (input.role === "hospital") {
+      const hospital: Hospital = {
+        id: randomUUID(),
+        userId: user.id,
+        name: user.name,
+        city: user.city,
+        createdAt: now,
+      };
+      this.hospitals.set(hospital.id, hospital);
+    }
+
+    return this.publicUser(user);
+  }
+
+  async authenticateUser(input: AuthLoginInput): Promise<AuthUser | null> {
+    const email = normalize(input.email);
+    const user = Array.from(this.users.values()).find((entry) => entry.email === email);
+    if (!user) return null;
+
+    const { hash } = this.hashPassword(input.password, user.passwordSalt);
+    return hash === user.passwordHash ? this.publicUser(user) : null;
+  }
+
+  async getUserById(id: string): Promise<AuthUser | undefined> {
+    const user = this.users.get(id);
+    return user ? this.publicUser(user) : undefined;
+  }
+
+  async getHospitalForUser(userId: string): Promise<Hospital | undefined> {
+    return Array.from(this.hospitals.values()).find((hospital) => hospital.userId === userId);
+  }
+
+  async getHospitalAvailability(userId: string): Promise<OrganAvailability[]> {
+    const hospital = this.getHospitalOrThrow(userId);
+    return Array.from(this.availability.values())
+      .filter((entry) => entry.hospitalId === hospital.id)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
+  async addHospitalAvailability(userId: string, input: CreateOrganAvailability): Promise<OrganAvailability> {
+    const hospital = this.getHospitalOrThrow(userId);
+    const existing = Array.from(this.availability.values()).find(
+      (entry) =>
+        entry.hospitalId === hospital.id &&
+        entry.organType === input.organType &&
+        entry.bloodGroup === input.bloodGroup &&
+        normalize(entry.city) === normalize(input.city),
+    );
+    const now = new Date().toISOString();
+
+    if (existing) {
+      const quantity = existing.quantity + input.quantity;
+      const updated: OrganAvailability = {
+        ...existing,
+        quantity,
+        status: quantity > 0 ? "AVAILABLE" : "UNAVAILABLE",
+        updatedAt: now,
+      };
+      this.availability.set(updated.id, updated);
+      return updated;
+    }
+
+    const created: OrganAvailability = {
+      id: randomUUID(),
+      hospitalId: hospital.id,
+      organType: input.organType,
+      bloodGroup: input.bloodGroup,
+      quantity: input.quantity,
+      status: input.quantity > 0 ? "AVAILABLE" : "UNAVAILABLE",
+      city: input.city,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.availability.set(created.id, created);
+    return created;
+  }
+
+  async deleteHospitalAvailability(userId: string, availabilityId: string): Promise<void> {
+    const hospital = this.getHospitalOrThrow(userId);
+    const entry = this.availability.get(availabilityId);
+    if (!entry || entry.hospitalId !== hospital.id) throw new Error("Availability entry not found");
+    this.availability.delete(availabilityId);
+  }
+
+  async reduceHospitalAvailability(userId: string, availabilityId: string, amount: number): Promise<OrganAvailability> {
+    const hospital = this.getHospitalOrThrow(userId);
+    const entry = this.availability.get(availabilityId);
+    if (!entry || entry.hospitalId !== hospital.id) throw new Error("Availability entry not found");
+    if (amount > entry.quantity) throw new Error("Cannot reduce by more than current quantity");
+
+    const quantity = entry.quantity - amount;
+    const updated: OrganAvailability = {
+      ...entry,
+      quantity,
+      status: quantity > 0 ? "AVAILABLE" : "UNAVAILABLE",
+      updatedAt: new Date().toISOString(),
+    };
+    this.availability.set(updated.id, updated);
+    return updated;
+  }
+
+  async searchAvailabilityForPatient(input: PatientSearchInput): Promise<HospitalAvailabilityView[]> {
+    const cityKey = normalize(input.city);
+    const compatibleGroups: BloodGroup[] = input.useCompatibility
+      ? ((BLOOD_COMPATIBILITY[input.bloodGroup] ?? [input.bloodGroup]) as BloodGroup[])
+      : [input.bloodGroup];
+    const now = Date.now();
+
+    return Array.from(this.availability.values())
+      .filter(
+        (entry) =>
+          normalize(entry.city) === cityKey &&
+          entry.organType === input.organType &&
+          compatibleGroups.includes(entry.bloodGroup) &&
+          entry.status === "AVAILABLE" &&
+          entry.quantity > 0,
+      )
+      .map((entry) => {
+        const hospital = this.hospitals.get(entry.hospitalId);
+        const waitDays = Math.floor((now - new Date(entry.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+        const urgencyScore = input.urgencyLevel ? URGENCY_SCORE[input.urgencyLevel] ?? 0 : 0;
+        const priorityScore = urgencyScore + Math.min(waitDays * 2, 50) + entry.quantity * 5;
+
+        return {
+          availabilityId: entry.id,
+          hospitalId: entry.hospitalId,
+          hospitalName: hospital?.name ?? "Unknown Hospital",
+          city: entry.city,
+          organType: entry.organType,
+          bloodGroup: entry.bloodGroup,
+          quantity: entry.quantity,
+          status: entry.status,
+          priorityScore,
+          isCompatible: entry.bloodGroup === input.bloodGroup,
+        } satisfies HospitalAvailabilityView;
+      })
+      .sort((a, b) => (b.priorityScore ?? 0) - (a.priorityScore ?? 0));
+  }
+
+  async createRequest(
+    patientUserId: string,
+    hospitalId: string,
+    organType: OrganType,
+    bloodGroup: BloodGroup,
+    urgencyLevel: UrgencyLevel = "MEDIUM",
+    notes?: string,
+  ): Promise<TransplantRequest> {
+    const patient = this.users.get(patientUserId);
+    if (!patient || patient.role !== "patient") throw new Error("Patient account not found");
+
+    const hospital = this.hospitals.get(hospitalId);
+    if (!hospital) throw new Error("Hospital not found");
+
+    const stock = Array.from(this.availability.values()).find(
+      (entry) =>
+        entry.hospitalId === hospital.id &&
+        entry.organType === organType &&
+        entry.bloodGroup === bloodGroup &&
+        entry.status === "AVAILABLE" &&
+        entry.quantity > 0,
+    );
+    if (!stock) throw new Error("Selected organ and blood group are currently unavailable at this hospital");
+
+    const now = new Date().toISOString();
+    const request: TransplantRequest = {
+      id: randomUUID(),
+      patientId: patient.id,
+      patientName: patient.name,
+      patientCity: patient.city,
+      hospitalId: hospital.id,
+      hospitalName: hospital.name,
+      organType,
+      bloodGroup,
+      status: "PENDING",
+      urgencyLevel,
+      notes,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.requests.set(request.id, request);
+    return request;
+  }
+
+  async getPatientRequests(patientUserId: string): Promise<TransplantRequest[]> {
+    return Array.from(this.requests.values())
+      .filter((request) => request.patientId === patientUserId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async getHospitalRequests(hospitalUserId: string): Promise<TransplantRequest[]> {
+    const hospital = this.getHospitalOrThrow(hospitalUserId);
+    return Array.from(this.requests.values())
+      .filter((request) => request.hospitalId === hospital.id)
+      .sort((a, b) => {
+        const urgencyDifference = (URGENCY_SCORE[b.urgencyLevel] ?? 0) - (URGENCY_SCORE[a.urgencyLevel] ?? 0);
+        if (urgencyDifference !== 0) return urgencyDifference;
+        return b.createdAt.localeCompare(a.createdAt);
+      });
+  }
+
+  async updateRequestStatus(hospitalUserId: string, requestId: string, status: "ACCEPTED" | "REJECTED"): Promise<TransplantRequest> {
+    const hospital = this.getHospitalOrThrow(hospitalUserId);
+    const request = this.requests.get(requestId);
+
+    if (!request) throw new Error("Request not found");
+    if (request.hospitalId !== hospital.id) throw new Error("This request does not belong to your hospital");
+    if (request.status !== "PENDING") throw new Error("Only pending requests can be updated");
+
+    const now = new Date().toISOString();
+    const updated: TransplantRequest = { ...request, status, updatedAt: now };
+    this.requests.set(updated.id, updated);
+
+    if (status === "ACCEPTED") {
+      const stock = Array.from(this.availability.values())
+        .filter(
+          (entry) =>
+            entry.hospitalId === hospital.id &&
+            entry.organType === request.organType &&
+            entry.bloodGroup === request.bloodGroup &&
+            entry.quantity > 0,
+        )
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+
+      if (!stock) throw new Error("No inventory left for this organ");
+
+      const quantity = stock.quantity - 1;
+      this.availability.set(stock.id, {
+        ...stock,
+        quantity,
+        status: quantity > 0 ? "AVAILABLE" : "UNAVAILABLE",
+        updatedAt: now,
+      });
+
+      for (const other of Array.from(this.requests.values())) {
+        if (
+          other.id !== request.id &&
+          other.hospitalId === request.hospitalId &&
+          other.organType === request.organType &&
+          other.bloodGroup === request.bloodGroup &&
+          other.status === "PENDING"
+        ) {
+          this.requests.set(other.id, { ...other, status: "REJECTED", updatedAt: now });
+        }
+      }
+    }
+
+    return this.requests.get(requestId) ?? updated;
+  }
+
+  async getStats(): Promise<Stats> {
+    const availableRows = Array.from(this.availability.values()).filter((entry) => entry.status === "AVAILABLE");
+    const organBreakdown: Record<string, number> = {};
+    const bloodGroupBreakdown: Record<string, number> = {};
+    let totalAvailableOrgans = 0;
+
+    for (const row of availableRows) {
+      totalAvailableOrgans += row.quantity;
+      organBreakdown[row.organType] = (organBreakdown[row.organType] ?? 0) + row.quantity;
+      bloodGroupBreakdown[row.bloodGroup] = (bloodGroupBreakdown[row.bloodGroup] ?? 0) + row.quantity;
+    }
+
+    const requests = Array.from(this.requests.values());
+    return {
+      totalAvailableOrgans,
+      totalHospitals: this.hospitals.size,
+      totalRequests: requests.length,
+      pendingRequests: requests.filter((request) => request.status === "PENDING").length,
+      acceptedRequests: requests.filter((request) => request.status === "ACCEPTED").length,
+      rejectedRequests: requests.filter((request) => request.status === "REJECTED").length,
+      organBreakdown,
+      bloodGroupBreakdown,
+    };
+  }
+}
+
+export const storage: IStorage = hasDatabaseUrl ? new PostgresStorage() : new MemoryStorage();
